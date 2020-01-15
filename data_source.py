@@ -1,4 +1,4 @@
-import h5py as h5py
+import h5pickle as h5py
 import numpy as np
 from torch import LongTensor
 from torch.nn.utils.rnn import pad_sequence
@@ -45,12 +45,13 @@ class MultihopTrainset(MultihopHdf5Dataset):
     @staticmethod
     def collate(batch):
         query_batch, pos_doc_batch, neg_docs_batch = zip(*batch)
-        query_lens = [len(q) for q in query_batch]
-        pos_lens = [len(d) for d in pos_doc_batch]
+        query_lens = LongTensor([len(q) for q in query_batch])
+        pos_lens = LongTensor([len(d) for d in pos_doc_batch])
 
         num_neg_examples = len(neg_docs_batch[0])
         batch_size = len(batch)
-        neg_batch_lens = [[len(neg_docs_batch[j][i]) for j in range(batch_size)] for i in range(num_neg_examples)]
+        neg_batch_lens = [LongTensor([len(neg_docs_batch[j][i]) for j in range(batch_size)]) for i in
+                          range(num_neg_examples)]
 
         query_batch = pad_sequence(query_batch, batch_first=True, padding_value=0)
         pos_doc_batch = pad_sequence(pos_doc_batch, batch_first=True, padding_value=0)
