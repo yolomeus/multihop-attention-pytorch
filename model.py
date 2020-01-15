@@ -327,7 +327,8 @@ class MultiHopAttention(nn.Module):
         u_att = [None] * (self.num_steps + 1)
         u_att[0] = torch.mean(inputs, 1)
 
-        M = torch.bmm(inputs, self.W_u_1.unsqueeze(0).expand(inputs.size(0), *self.W_u_1.size()))  # b x l x h
+        W_unsq = self.W_u_1.unsqueeze(0).expand(inputs.size(0), *self.W_u_1.size())
+        M = torch.bmm(inputs, W_unsq)  # b x l x h
         M = F.tanh(M)
         M = M * F.tanh(torch.mm(m_u[0], self.W_u_m_1)).unsqueeze(1).expand_as(M)
         U = torch.bmm(M, self.W_u_h_1.unsqueeze(0).expand(M.size(0), *self.W_u_h_1.size()))
@@ -373,7 +374,7 @@ class QAMatching(nn.Module):
         self.num_steps = num_steps
         self.pooling = pooling  # [raw, max, last, mean]
 
-        self.att_size = 2 * hidden_size
+        self.att_size = hidden_size
         if att_method == 'sequential':
             self.att_layer = SequentialAttention(hidden_size=self.att_size)
         elif att_method == 'mlp':
