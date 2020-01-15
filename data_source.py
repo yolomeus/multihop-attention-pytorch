@@ -6,7 +6,9 @@ from torch.utils import data
 
 
 class MultihopHdf5Dataset(data.Dataset):
-    def __init__(self, file_path):
+    def __init__(self, file_path, max_q_len, max_doc_len):
+        self.max_q_len = max_q_len
+        self.max_doc_len = max_doc_len
         self.fp = h5py.File(file_path, 'r')
 
     @staticmethod
@@ -23,8 +25,8 @@ class MultihopHdf5Dataset(data.Dataset):
 
 
 class MultihopTrainset(MultihopHdf5Dataset):
-    def __init__(self, file_path, neg_examples):
-        super().__init__(file_path)
+    def __init__(self, file_path, neg_examples, max_q_len=20, max_doc_len=150):
+        super().__init__(file_path, max_q_len, max_doc_len)
         fp = self.fp
         self.neg_examples = neg_examples
 
@@ -35,9 +37,9 @@ class MultihopTrainset(MultihopHdf5Dataset):
     def __getitem__(self, index):
         query = LongTensor(self.queries[index])
         pos_doc = LongTensor(self.pos_docs[index])
-        neg_docs = [LongTensor(self.neg_docs[str(i)][index]) for i in range(self.neg_examples)]
+        neg_docs = [LongTensor(self.neg_docs[str(i)][index][:self.max_doc_len]) for i in range(self.neg_examples)]
 
-        return query, pos_doc, neg_docs
+        return query[:self.max_q_len], pos_doc[:self.max_doc_len], neg_docs
 
     def __len__(self):
         return len(self.queries)
