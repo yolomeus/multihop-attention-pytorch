@@ -160,9 +160,12 @@ class Hdf5Saver(ABC):
 
 
 class MANHdf5Saver(Hdf5Saver):
-    def __init__(self, dataset: Dataset, tokenizer, max_vocab_size, vocab_outfile, train_outfile=None, dev_outfile=None,
+    def __init__(self, dataset: Dataset, tokenizer, max_vocab_size, vocab_outfile, max_query_len, max_doc_len,
+                 train_outfile=None, dev_outfile=None,
                  test_outfile=None):
         super().__init__(dataset, tokenizer, max_vocab_size, vocab_outfile, train_outfile, dev_outfile, test_outfile)
+        self.dataset.transform_queries(lambda x: x[:max_query_len])
+        self.dataset.transform_docs(lambda x: x[:max_doc_len])
 
     def _define_trainset(self, dataset_fp, n_out_examples):
         vlen_int64 = h5py.special_dtype(vlen=np.dtype('int64'))
@@ -206,15 +209,17 @@ def main():
         num_neg_examples = 50
 
     fiqa = FiQA(Args())
-    base = 'data/fiqa'
+    base = 'data/fiqa_neg_50'
     train = 'train.hdf5'
     dev = 'dev.hdf5'
     test = 'test.hdf5'
     tokenizer = NLTKTokenizer()
     saver = MANHdf5Saver(fiqa,
                          tokenizer,
-                         80000,
+                         22413,
                          os.path.join(base, 'vocabulary.pkl'),
+                         20,
+                         150,
                          os.path.join(base, train),
                          os.path.join(base, test),
                          os.path.join(base, dev))
