@@ -81,7 +81,7 @@ class Encoder(nn.Module):
 
         batch_size = embedded.size()[1]
         state_shape = self.n_cells, batch_size, self.hidden_size
-        h0 = c0 = Variable(embedded.data.new(*state_shape).zero_()).cuda()
+        h0 = c0 = Variable(embedded.data.new(*state_shape).zero_())
 
         packed_input = pack_padded_sequence(embedded, input_length.cpu().numpy())
         packed_output, (ht, ct) = self.encoder(packed_input, (h0, c0))
@@ -194,7 +194,7 @@ class SequentialAttention(nn.Module):
 
         batch_size = y.size()[1]
         state_shape = 2, batch_size, self.hidden_size
-        h0 = c0 = Variable(y.data.new(*state_shape).zero_()).cuda()
+        h0 = c0 = Variable(y.data.new(*state_shape).zero_())
 
         outputs, _ = self.encoder(y, (h0, c0))
 
@@ -387,7 +387,7 @@ class QAMatching(nn.Module):
         self.sim_layer = nn.CosineSimilarity(dim=1, eps=1e-8)
 
     def single_forward(self, q_batch, q_batch_length, pooling='max'):
-        q_batch_length = torch.cuda.LongTensor(q_batch_length)
+        #q_batch_length = torch.LongTensor(q_batch_length)
         q_batch_length, q_perm_idx = q_batch_length.sort(0, descending=True)
         q_batch = q_batch[q_perm_idx]
 
@@ -395,7 +395,7 @@ class QAMatching(nn.Module):
         if pooling == 'raw':
             q_out = q_out.permute(1, 0, 2)  # len x batch x h --> batch x len x h
 
-        q_inverse_idx = torch.zeros(q_perm_idx.size()[0]).long().cuda()
+        q_inverse_idx = torch.zeros(q_perm_idx.size()[0]).long()
         for i in range(q_perm_idx.size()[0]):
             q_inverse_idx[q_perm_idx[i]] = i
 
@@ -403,7 +403,7 @@ class QAMatching(nn.Module):
 
         return q_out
 
-    def forward(self, q_batch, q_batch_length, d_batch, d_batch_length):
+    def forward(self, q_batch, q_batch_length, pos_batch, pos_length, neg_batches, neg_batch_lengths):
         q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
 
         # q_out = [None] * 3
@@ -412,17 +412,29 @@ class QAMatching(nn.Module):
         # q_out[2] = torch.mean(q_out_raw, 1)
 
         q_out = self.qatt_layer(q_out_raw)
-
-        d_out = self.single_forward(d_batch, d_batch_length, pooling='raw')  # b x l x h
-        d_batch_len = (d_batch.size()[0]) // 2
-
         self.num_steps = 2  # q_out.size(0)
 
-        sim = None
-        for idx in range(self.num_steps + 1):
-            pd_out = self.att_layer([d_out, q_out[idx]])
-            # s = torch.sum(d_out[idx] * q_out[idx], dim=1)
-            s = self.sim_layer(pd_out, q_out[idx])
-            sim = s if idx == 0 else sim + s
+        pos_d_out = self.single_forward(pos_batch, pos_length, pooling='raw')
 
-        return sim
+        pos_sim = 0
+        for idx in range(self.num_steps + 1):
+            pos_d_att = self.att_layer([pos_d_out, q_out[idx]])
+            s = self.sim_layer(pos_d_att, q_out[idx])
+            pos_sim += s
+
+        if not self.training:
+            return pos_sim
+
+        neg_d_outs = []
+        for d_batch, d_batch_length in zip(neg_batches, neg_batch_lengths):
+            neg_d_out = self.single_forward(d_batch, d_batch_length, pooling='raw')  # b x l x h
+            neg_d_outs.append(neg_d_out)
+
+        neg_sims = [0] * len(neg_batches)
+        for i, neg_d_out in enumerate(neg_d_outs):
+            for idx in range(self.num_steps + 1):
+                neg_d_att = self.att_layer([neg_d_out, q_out[idx]])
+                s = self.sim_layer(neg_d_att, q_out[idx])
+                neg_sims[i] += s
+
+        return pos_sim, neg_sims

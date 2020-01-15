@@ -39,18 +39,19 @@ def train(model, train_dl, optimizer, device, args):
         for i, batch in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
             query_batch, query_lens, pos_doc_batch, pos_lens, neg_doc_batches, neg_lens_batches = batch
 
-            pos_sim = model(query_batch.to(device), query_lens.to(device), pos_doc_batch.to(device),
-                            pos_lens.to(device))
-            neg_sims = [
-                model(query_batch.to(device), query_lens.to(device), neg_doc_batch.to(device), neg_doc_lens.to(device))
-                for neg_doc_batch, neg_doc_lens in
-                zip(neg_doc_batches, neg_lens_batches)]
+            pos_sim, neg_sims = model(query_batch.to(device),
+                                      query_lens.to(device),
+                                      pos_doc_batch.to(device),
+                                      pos_lens.to(device),
+                                      batch_to_device(neg_doc_batches, device),
+                                      batch_to_device(neg_lens_batches, device))
 
             losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
             batch_losses = []
             for j in range(args.batch_size):
                 doc_losses = [losses[k][j] for k in range(len(neg_doc_batches))]
-                batch_losses.append(max(doc_losses))
+                max_loss = max(doc_losses)
+                batch_losses.append(max_loss)
 
             # mean over batch
             losses = torch.stack(batch_losses)
@@ -96,7 +97,7 @@ def main():
     args = ap.parse_args()
 
     trainset = MultihopTrainset(args.TRAIN_DATA, args.num_neg_examples)
-    train_dl = DataLoader(trainset, args.batch_size, True, pin_memory=True, collate_fn=trainset.collate)
+    train_dl = DataLoader(trainset, args.batch_size, True, collate_fn=trainset.collate)
 
     device = get_cuda_device()
 
