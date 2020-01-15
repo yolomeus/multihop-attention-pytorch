@@ -402,7 +402,7 @@ class QAMatching(nn.Module):
 
         return q_out
 
-    def forward(self, q_batch, q_batch_length, d_batch, d_batch_length, training=True):
+    def forward(self, q_batch, q_batch_length, d_batch, d_batch_length):
         q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
 
         # q_out = [None] * 3
@@ -417,25 +417,11 @@ class QAMatching(nn.Module):
 
         self.num_steps = 2  # q_out.size(0)
 
-        if training:
-            sim = None
-            nsim = None
-            for idx in range(self.num_steps + 1):
-                pd_out = self.att_layer([d_out[:d_batch_len], q_out[idx]])
-                nd_out = self.att_layer([d_out[d_batch_len:], q_out[idx]])
-                # s = torch.sum(pd_out[idx] * q_out[idx], dim=1)
-                s = self.sim_layer(pd_out, q_out[idx])
-                ns = self.sim_layer(nd_out, q_out[idx])
-                sim = s if idx == 0 else sim + s
-                nsim = ns if idx == 0 else nsim + ns
+        sim = None
+        for idx in range(self.num_steps + 1):
+            pd_out = self.att_layer([d_out, q_out[idx]])
+            # s = torch.sum(d_out[idx] * q_out[idx], dim=1)
+            s = self.sim_layer(pd_out, q_out[idx])
+            sim = s if idx == 0 else sim + s
 
-            return sim, nsim
-        else:
-            sim = None
-            for idx in range(self.num_steps + 1):
-                pd_out = self.att_layer([d_out, q_out[idx]])
-                # s = torch.sum(d_out[idx] * q_out[idx], dim=1)
-                s = self.sim_layer(pd_out, q_out[idx])
-                sim = s if idx == 0 else sim + s
-
-            return sim, None
+        return sim
