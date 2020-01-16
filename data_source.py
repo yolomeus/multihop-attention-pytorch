@@ -68,3 +68,36 @@ class MultihopTrainset(MultihopHdf5Dataset):
             neg_padded_batches.append(padded_batch)
 
         return query_batch, query_lens, pos_doc_batch, pos_lens, neg_padded_batches, neg_batch_lens
+
+
+class MultihopTestset(MultihopHdf5Dataset):
+    def __init__(self, file_path, max_q_len=20, max_doc_len=150):
+        super().__init__(file_path, max_q_len, max_doc_len)
+        fp = self.fp
+
+        self.q_ids = fp['q_id']
+        self.queries = fp['query']
+        self.docs = fp['doc']
+        self.labels = fp['label']
+
+    def __getitem__(self, index):
+        query = LongTensor(self.queries[index])
+        doc = LongTensor(self.docs[index])
+        q_id = self.q_ids[index]
+        label = self.labels[index]
+        return q_id, query[:self.max_q_len], doc[:self.max_doc_len], label
+
+    def __len__(self):
+        return len(self.queries)
+
+    @staticmethod
+    def collate(batch):
+        q_id_batch, query_batch, doc_batch, label_batch = zip(*batch)
+        query_lens = LongTensor([len(q) for q in query_batch])
+        doc_lens = LongTensor([len(d) for d in doc_batch])
+
+        query_batch = pad_sequence(query_batch, batch_first=True, padding_value=0)
+        doc_batch = pad_sequence(doc_batch, batch_first=True, padding_value=0)
+
+        # we set negative batches and lens to None since we're not training
+        return LongTensor(q_id_batch), (query_batch, query_lens, doc_batch, doc_lens), LongTensor(label_batch)
