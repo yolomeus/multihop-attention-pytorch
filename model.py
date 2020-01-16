@@ -387,7 +387,7 @@ class QAMatching(nn.Module):
         self.sim_layer = nn.CosineSimilarity(dim=1, eps=1e-8)
 
     def single_forward(self, q_batch, q_batch_length, pooling='max'):
-        #q_batch_length = torch.LongTensor(q_batch_length)
+        # q_batch_length = torch.LongTensor(q_batch_length)
         q_batch_length, q_perm_idx = q_batch_length.sort(0, descending=True)
         q_batch = q_batch[q_perm_idx]
 
@@ -403,7 +403,7 @@ class QAMatching(nn.Module):
 
         return q_out
 
-    def forward(self, q_batch, q_batch_length, pos_batch, pos_length, neg_batches, neg_batch_lengths):
+    def forward(self, q_batch, q_batch_length, pos_batch, pos_length, neg_batches=None, neg_batch_lengths=None):
         q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
 
         # q_out = [None] * 3
@@ -423,7 +423,7 @@ class QAMatching(nn.Module):
             pos_sim += s
 
         if not self.training:
-            return pos_sim
+            return pos_sim.unsqueeze(0)
 
         neg_d_outs = []
         for d_batch, d_batch_length in zip(neg_batches, neg_batch_lengths):
