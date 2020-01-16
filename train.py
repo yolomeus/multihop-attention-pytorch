@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from data_source import MultihopTrainset
 from model import QAMatching
-from qa_utils.io import get_cuda_device, batches_to_device
+from qa_utils.io import get_cuda_device, batches_to_device, load_pkl_file
 from qa_utils.misc import Logger
 
 
@@ -77,12 +77,15 @@ def train(model, train_dl, optimizer, device, args):
 def main():
     ap = ArgumentParser(description='Train the DUET model.')
     ap.add_argument('TRAIN_DATA', help='Path to an hdf5 file containing the training data.')
-    # ap.add_argument('VOCAB_FILE', help='Pickle file containing the mapping from ids to words.')
+    ap.add_argument('VOCAB_FILE', help='Pickle file containing the mapping from ids to words.')
 
     ap.add_argument('--hidden_dim', type=int, default=512,
                     help='The hidden dimension used throughout the whole network.')
+
     ap.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings')
+    ap.add_argument('--glove_cache', default='glove_cache', help='Glove cache directory.')
     ap.add_argument('--vocab_size', type=int, default=22413, help='The dimensionality of the GloVe embeddings')
+
     ap.add_argument('--num_neg_examples', type=int, default=50, help='The dimensionality of the GloVe embeddings')
     ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 
@@ -101,7 +104,8 @@ def main():
 
     device = get_cuda_device()
 
-    model = QAMatching(args.vocab_size, args.embed_dim, args.hidden_dim)
+    id_to_word = load_pkl_file(args.VOCAB_FILE)
+    model = QAMatching(args.vocab_size, args.embed_dim, args.hidden_dim, id_to_word, args.glove_cache)
     model = model.to(device)
     model = torch.nn.DataParallel(model)
 

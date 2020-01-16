@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from data_source import MultihopTestset
 from model import QAMatching
 from qa_utils.evaluation import read_args, evaluate_all
-from qa_utils.io import get_cuda_device, load_pkl_file
+from qa_utils.io import get_cuda_device
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()

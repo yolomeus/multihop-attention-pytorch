@@ -3,11 +3,13 @@
 """
 Code taken from https://github.com/namkhanhtran/nn4nqa
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torchtext import vocab
 
 
 class Preprocessor(nn.Module):
@@ -55,7 +57,7 @@ class Preprocessor(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, vocab_size, embed_size, hidden_size, bidirectional=False, pretrained_emb=None):
+    def __init__(self, vocab_size, embed_size, hidden_size, id_to_word, glove_cache, bidirectional=False):
         super(Encoder, self).__init__()
 
         self.vocab_size = vocab_size
@@ -67,11 +69,7 @@ class Encoder(nn.Module):
         else:
             self.n_cells = 1
 
-        self.embedding = nn.Embedding(vocab_size, embed_size, padding_idx=0)
-        # initialize with pretrained
-        if pretrained_emb is not None:
-            self.embedding.weight.data.copy_(torch.from_numpy(pretrained_emb))
-
+        self.embedding = GloveEmbedding(id_to_word, name='840B', dim=embed_size, cache=glove_cache, padding_idx=0)
         self.encoder = nn.LSTM(embed_size, hidden_size, bidirectional=self.birnn, num_layers=1, dropout=.3)
 
     def forward(self, inputs, input_length, pooling='max'):
@@ -361,15 +359,16 @@ class MultiHopAttention(nn.Module):
 class QAMatching(nn.Module):
     """"""
 
-    def __init__(self, vocab_size, embed_size, hidden_size, bidirectional=False, pretrained_emb=None,
-                 pooling='max', num_steps=2, att_method='sequential'):
+    def __init__(self, vocab_size, embed_size, hidden_size, id_to_word, glove_cache, bidirectional=False, pooling='max',
+                 num_steps=2, att_method='sequential'):
         super(QAMatching, self).__init__()
 
         self.encoder = Encoder(vocab_size=vocab_size,
                                embed_size=embed_size,
                                hidden_size=hidden_size,
-                               bidirectional=bidirectional,
-                               pretrained_emb=pretrained_emb)
+                               id_to_word=id_to_word,
+                               glove_cache=glove_cache,
+                               bidirectional=bidirectional)
 
         self.num_steps = num_steps
         self.pooling = pooling  # [raw, max, last, mean]
@@ -438,3 +437,38 @@ class QAMatching(nn.Module):
                 neg_sims[i] += s
 
         return pos_sim, neg_sims
+
+
+class GloveEmbedding(torch.nn.Module):
+    def __init__(self, id_to_word, name, dim, freeze=False, cache=None, padding_idx=None):
+        super().__init__()
+        self.id_to_word = id_to_word
+        self.name = name
+        self.dim = dim
+        self.padding_idx = padding_idx
+        self.glove = vocab.GloVe(name=name, dim=dim, cache=cache)
+        weights = self._get_weights()
+        self.embedding = torch.nn.Embedding.from_pretrained(weights, freeze=freeze)
+
+    def _get_weights(self):
+        weights = []
+        i = 0
+        for idx in sorted(self.id_to_word):
+            word = self.id_to_word[idx]
+            if i == self.padding_idx:
+                weights.append(torch.zeros([self.dim]))
+                i += 1
+                continue
+            if word in self.glove.stoi:
+                glove_idx = self.glove.stoi[word]
+                weights.append(self.glove.vectors[glove_idx])
+                i += 1
+            else:
+                # initialize randomly
+                weights.append(torch.zeros([self.dim]).uniform_(-0.25, 0.25))
+        print(f'Imported {i} words from GloVe')
+        # this converts a list of tensors to a new tensor
+        return torch.stack(weights)
+
+    def forward(self, x):
+        return self.embedding(x)
