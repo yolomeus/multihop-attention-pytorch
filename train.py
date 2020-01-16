@@ -84,7 +84,6 @@ def main():
 
     ap.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings')
     ap.add_argument('--glove_cache', default='glove_cache', help='Glove cache directory.')
-    ap.add_argument('--vocab_size', type=int, default=22413, help='The dimensionality of the GloVe embeddings')
 
     ap.add_argument('--num_neg_examples', type=int, default=50, help='The dimensionality of the GloVe embeddings')
     ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
@@ -105,7 +104,8 @@ def main():
     device = get_cuda_device()
 
     id_to_word = load_pkl_file(args.VOCAB_FILE)
-    model = QAMatching(args.vocab_size, args.embed_dim, args.hidden_dim, id_to_word, args.glove_cache)
+    vocab_size = len(id_to_word.keys())
+    model = QAMatching(vocab_size, args.embed_dim, args.hidden_dim, id_to_word, args.glove_cache)
     model = model.to(device)
     model = torch.nn.DataParallel(model)
 

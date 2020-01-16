@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from data_source import MultihopTestset
 from model import QAMatching
 from qa_utils.evaluation import read_args, evaluate_all
-from qa_utils.io import get_cuda_device
+from qa_utils.io import get_cuda_device, load_pkl_file
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
@@ -30,7 +30,10 @@ if __name__ == '__main__':
                          num_workers=args.num_workers, collate_fn=test_set.collate)
     device = get_cuda_device()
 
-    model = QAMatching(int(train_args['vocab_size']), int(train_args['embed_dim']), int(train_args['hidden_dim']))
+    id_to_word = load_pkl_file(train_args['VOCAB'])
+    vocab_size = len(id_to_word.keys())
+    model = QAMatching(vocab_size, int(train_args['embed_dim']), int(train_args['hidden_dim']), id_to_word,
+                       train_args['glove_cache'])
     model.to(device)
     model = torch.nn.DataParallel(model)
     evaluate_all(model, args.WORKING_DIR, dev_dl, test_dl, args.mrr_k, device, has_multiple_inputs=True,
