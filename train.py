@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from data_source import MultihopTrainset
 from model import QAMatching
-from qa_utils.io import get_cuda_device, batch_to_device
+from qa_utils.io import get_cuda_device, batches_to_device
 from qa_utils.misc import Logger
 
 
@@ -27,7 +27,7 @@ def train(model, train_dl, optimizer, device, args):
     # save all args in a file
     args_file = os.path.join(args.working_dir, 'args.csv')
     print('writing {}...'.format(args_file))
-    with open(args_file, 'w') as fp:
+    with open(args_file, 'w', newline='') as fp:
         writer = csv.writer(fp)
         for arg in vars(args):
             writer.writerow([arg, getattr(args, arg)])
@@ -43,8 +43,8 @@ def train(model, train_dl, optimizer, device, args):
                                       query_lens.to(device),
                                       pos_doc_batch.to(device),
                                       pos_lens.to(device),
-                                      batch_to_device(neg_doc_batches, device),
-                                      batch_to_device(neg_lens_batches, device))
+                                      batches_to_device(neg_doc_batches, device),
+                                      batches_to_device(neg_lens_batches, device))
 
             losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
             batch_losses = []
@@ -84,7 +84,6 @@ def main():
     ap.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings')
     ap.add_argument('--vocab_size', type=int, default=22413, help='The dimensionality of the GloVe embeddings')
     ap.add_argument('--num_neg_examples', type=int, default=50, help='The dimensionality of the GloVe embeddings')
-    ap.add_argument('--dropout', type=float, default=0.5, help='Dropout value')
     ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 
     ap.add_argument('--epochs', type=int, default=20, help='Number of epochs')
@@ -92,10 +91,11 @@ def main():
     ap.add_argument('--accumulate_batches', type=int, default=20,
                     help='Update weights after this many batches')
     ap.add_argument('--working_dir', default='train', help='Working directory for checkpoints and logs')
-    ap.add_argument('--random_seed', type=int, default=38852956087345243, help='Random seed')
+    ap.add_argument('--random_seed', type=int, default=1579129142, help='Random seed')
 
     args = ap.parse_args()
 
+    torch.manual_seed(args.random_seed)
     trainset = MultihopTrainset(args.TRAIN_DATA, args.num_neg_examples)
     train_dl = DataLoader(trainset, args.batch_size, True, collate_fn=trainset.collate)
 
