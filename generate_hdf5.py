@@ -16,10 +16,10 @@ if __name__ == '__main__':
                     help='The dataset that will be processed.')
     ap.add_argument('--vocab_size', type=int, default=80000,
                     help='Only use the n most frequent words for the vocabulary.')
-    ap.add_argument('--num_neg_examples', type=int, default=1,
+    ap.add_argument('--num_neg_examples', type=int, default=50,
                     help='For each query sample this many negative documents.')
     ap.add_argument('--max_q_len', type=int, default=20, help='Maximum query length.')
-    ap.add_argument('--max_d_len', type=int, default=200, help='Maximum document legth.')
+    ap.add_argument('--max_d_len', type=int, default=150, help='Maximum document legth.')
     ap.add_argument('--examples_per_query', type=int, choices=[100, 500, 1000, 1500],
                     default=500, help='How many examples per query in the dev- and testset for insurance qa.')
 

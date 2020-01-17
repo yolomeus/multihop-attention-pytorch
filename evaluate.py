@@ -30,7 +30,7 @@ if __name__ == '__main__':
                          num_workers=args.num_workers, collate_fn=test_set.collate)
     device = get_cuda_device()
 
-    id_to_word = load_pkl_file(train_args['VOCAB'])
+    id_to_word = load_pkl_file(train_args['VOCAB_FILE'])
     vocab_size = len(id_to_word.keys())
     model = QAMatching(vocab_size, int(train_args['embed_dim']), int(train_args['hidden_dim']), id_to_word,
                        train_args['glove_cache'])
