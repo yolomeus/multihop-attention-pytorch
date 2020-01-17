@@ -4,7 +4,6 @@ from argparse import ArgumentParser
 
 import torch
 from torch import optim
-
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -16,6 +15,41 @@ from qa_utils.misc import Logger
 
 def max_margin(pos_sim, neg_sim, margin=0.2):
     return torch.clamp(margin - pos_sim + neg_sim, min=0)
+
+
+def sample_neg_docs(model, device, query_batch, query_lens, pos_doc_batch, pos_lens, neg_doc_batches, neg_lens_batches):
+    """Compute losses for each sampled negative document and return batch of negative documents with maximum loss.
+
+    Returns: tuple(list, list): a batch of (padded) negative documents and a list of their non padded lens.
+    """
+    # we compute losses for all sampled negative documents without storing intermediate activations
+    with torch.no_grad():
+        pos_sim, neg_sims = model(query_batch.to(device),
+                                  query_lens.to(device),
+                                  pos_doc_batch.to(device),
+                                  pos_lens.to(device),
+                                  batches_to_device(neg_doc_batches, device),
+                                  batches_to_device(neg_lens_batches, device))
+
+        losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
+        losses = torch.stack(losses, dim=1)
+        # index of the highest loss negative document for each row in the batch
+        max_doc_ids = torch.argmax(losses, dim=1)
+
+        # build a negative doc batch with highest loss docs
+        max_doc_batch = []
+        max_doc_lens = []
+        for j, idx in enumerate(max_doc_ids):
+            max_doc = neg_doc_batches[idx][j]
+            max_doc_len = neg_lens_batches[idx][j]
+
+            max_doc_batch.append(max_doc)
+            max_doc_lens.append(max_doc_len)
+
+        max_doc_batch = torch.stack(max_doc_batch)
+        max_doc_lens = torch.stack(max_doc_lens)
+
+        return max_doc_batch, max_doc_lens
 
 
 def train(model, train_dl, optimizer, device, args):
@@ -39,45 +73,20 @@ def train(model, train_dl, optimizer, device, args):
         for i, batch in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
             query_batch, query_lens, pos_doc_batch, pos_lens, neg_doc_batches, neg_lens_batches = batch
 
-            # we compute losses for all sampled negative documents without storing intermediate activations
-            with torch.no_grad():
-                pos_sim, neg_sims = model(query_batch.to(device),
-                                          query_lens.to(device),
-                                          pos_doc_batch.to(device),
-                                          pos_lens.to(device),
-                                          batches_to_device(neg_doc_batches, device),
-                                          batches_to_device(neg_lens_batches, device))
-
-                losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
-                losses = torch.stack(losses, dim=1)
-                # index of the highest loss negative document for each row in the batch
-                max_doc_ids = torch.argmax(losses, dim=1)
-
-                # build a negative doc batch with highest loss docs
-                max_doc_batch = []
-                max_doc_lens = []
-                batch_size = len(query_lens)
-                for j in range(batch_size):
-                    max_doc_idx = max_doc_ids[j]
-
-                    max_doc = neg_doc_batches[max_doc_idx][j]
-                    max_doc_len = neg_lens_batches[max_doc_idx][j]
-
-                    max_doc_batch.append(max_doc)
-                    max_doc_lens.append(max_doc_len)
-
-                max_doc_batch = torch.stack(max_doc_batch)
-                max_doc_lens = torch.stack(max_doc_lens)
-
+            # we only take negative documents with maximum loss
+            neg_doc_batch, neg_doc_lens = sample_neg_docs(model, device, query_batch, query_lens, pos_doc_batch,
+                                                          pos_lens, neg_doc_batches, neg_lens_batches)
             # the actual forward pass which stores activations
             pos_sim, neg_sims = model(query_batch.to(device),
                                       query_lens.to(device),
                                       pos_doc_batch.to(device),
                                       pos_lens.to(device),
-                                      [max_doc_batch],
-                                      [max_doc_lens])
+                                      [neg_doc_batch],
+                                      [neg_doc_lens])
 
-            batch_losses = max_margin(pos_sim, neg_sims[0])
+            # we only passed a list of 1 negative docs for updating gradients
+            neg_sim = neg_sims[0]
+            batch_losses = max_margin(pos_sim, neg_sim)
             loss = torch.mean(batch_losses)
             loss = loss / args.accumulate_batches
             loss.backward()
