@@ -82,6 +82,7 @@ class Encoder(nn.Module):
         h0 = c0 = Variable(embedded.data.new(*state_shape).zero_())
 
         packed_input = pack_padded_sequence(embedded, input_length.cpu().numpy())
+        self.encoder.flatten_parameters()
         packed_output, (ht, ct) = self.encoder(packed_input, (h0, c0))
         outputs, _ = pad_packed_sequence(packed_output)
 
@@ -193,7 +194,7 @@ class SequentialAttention(nn.Module):
         batch_size = y.size()[1]
         state_shape = 2, batch_size, self.hidden_size
         h0 = c0 = Variable(y.data.new(*state_shape).zero_())
-
+        self.encoder.flatten_parameters()
         outputs, _ = self.encoder(y, (h0, c0))
 
         outputs = outputs.permute(1, 0, 2)  # len x batch x h --> batch x len x h
