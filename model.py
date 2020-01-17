@@ -423,7 +423,7 @@ class QAMatching(nn.Module):
             pos_sim += s
 
         if not self.training:
-            return pos_sim.unsqueeze(0)
+            return pos_sim.unsqueeze(-1)
 
         neg_d_outs = []
         for d_batch, d_batch_length in zip(neg_batches, neg_batch_lengths):
