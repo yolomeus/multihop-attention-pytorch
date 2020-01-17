@@ -39,23 +39,46 @@ def train(model, train_dl, optimizer, device, args):
         for i, batch in enumerate(tqdm(train_dl, desc='epoch {}'.format(epoch + 1))):
             query_batch, query_lens, pos_doc_batch, pos_lens, neg_doc_batches, neg_lens_batches = batch
 
+            # we compute losses for all sampled negative documents without storing intermediate activations
+            with torch.no_grad():
+                pos_sim, neg_sims = model(query_batch.to(device),
+                                          query_lens.to(device),
+                                          pos_doc_batch.to(device),
+                                          pos_lens.to(device),
+                                          batches_to_device(neg_doc_batches, device),
+                                          batches_to_device(neg_lens_batches, device))
+
+                losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
+                losses = torch.stack(losses, dim=1)
+                # index of the highest loss negative document for each row in the batch
+                max_doc_ids = torch.argmax(losses, dim=1)
+
+                # build a negative doc batch with highest loss docs
+                max_doc_batch = []
+                max_doc_lens = []
+                batch_size = len(query_lens)
+                for j in range(batch_size):
+                    max_doc_idx = max_doc_ids[j]
+
+                    max_doc = neg_doc_batches[max_doc_idx][j]
+                    max_doc_len = neg_lens_batches[max_doc_idx][j]
+
+                    max_doc_batch.append(max_doc)
+                    max_doc_lens.append(max_doc_len)
+
+                max_doc_batch = torch.stack(max_doc_batch)
+                max_doc_lens = torch.stack(max_doc_lens)
+
+            # the actual forward pass which stores activations
             pos_sim, neg_sims = model(query_batch.to(device),
                                       query_lens.to(device),
                                       pos_doc_batch.to(device),
                                       pos_lens.to(device),
-                                      batches_to_device(neg_doc_batches, device),
-                                      batches_to_device(neg_lens_batches, device))
+                                      [max_doc_batch],
+                                      [max_doc_lens])
 
-            losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
-            batch_losses = []
-            for j in range(len(query_batch)):
-                doc_losses = [losses[k][j] for k in range(len(losses))]
-                max_loss = max(doc_losses)
-                batch_losses.append(max_loss)
-
-            # mean over batch
-            losses = torch.stack(batch_losses)
-            loss = torch.mean(losses).requires_grad_()
+            batch_losses = max_margin(pos_sim, neg_sims[0])
+            loss = torch.mean(batch_losses)
             loss = loss / args.accumulate_batches
             loss.backward()
             if (i + 1) % args.accumulate_batches == 0:
@@ -89,8 +112,8 @@ def main():
     ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 
     ap.add_argument('--epochs', type=int, default=20, help='Number of epochs')
-    ap.add_argument('--batch_size', type=int, default=5, help='Batch size')
-    ap.add_argument('--accumulate_batches', type=int, default=20,
+    ap.add_argument('--batch_size', type=int, default=100, help='Batch size')
+    ap.add_argument('--accumulate_batches', type=int, default=1,
                     help='Update weights after this many batches')
     ap.add_argument('--working_dir', default='train', help='Working directory for checkpoints and logs')
     ap.add_argument('--random_seed', type=int, default=1579129142, help='Random seed')
