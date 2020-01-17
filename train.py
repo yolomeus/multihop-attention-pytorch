@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import torch
 from torch import optim
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -45,8 +46,7 @@ def sample_neg_docs(model, device, query_batch, query_lens, pos_doc_batch, pos_l
 
             max_doc_batch.append(max_doc)
             max_doc_lens.append(max_doc_len)
-
-        max_doc_batch = torch.stack(max_doc_batch)
+        max_doc_batch = pad_sequence(max_doc_batch, batch_first=True, padding_value=0)
         max_doc_lens = torch.stack(max_doc_lens)
 
         return max_doc_batch, max_doc_lens
