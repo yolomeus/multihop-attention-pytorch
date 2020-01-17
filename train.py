@@ -49,7 +49,7 @@ def train(model, train_dl, optimizer, device, args):
             losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
             batch_losses = []
             for j in range(args.batch_size):
-                doc_losses = [losses[k][j] for k in range(len(neg_doc_batches))]
+                doc_losses = [losses[k][j] for k in range(len(losses))]
                 max_loss = max(doc_losses)
                 batch_losses.append(max_loss)
 
