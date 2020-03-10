@@ -1,5 +1,4 @@
 import h5pickle as h5py
-import numpy as np
 from torch import LongTensor
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils import data
@@ -10,18 +9,6 @@ class MultihopHdf5Dataset(data.Dataset):
         self.max_q_len = max_q_len
         self.max_doc_len = max_doc_len
         self.fp = h5py.File(file_path, 'r')
-
-    @staticmethod
-    def _pad_to(x, n):
-        return np.pad(x, (0, n - len(x)), constant_values=0)
-
-    @staticmethod
-    def _get_mask(ids, max_len):
-        mask = np.zeros((max_len, 1), dtype=np.float32)
-        for i in range(len(ids)):
-            mask[i, 0] = 1
-
-        return mask
 
 
 class MultihopTrainset(MultihopHdf5Dataset):
