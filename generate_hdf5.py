@@ -12,7 +12,7 @@ if __name__ == '__main__':
     ap = ArgumentParser()
     ap.add_argument('DATA_DIR', type=str, help='Directory with the raw dataset files.')
     ap.add_argument('OUTPUT_DIR', type=str, help='Directory to store the generated files in.')
-    ap.add_argument('DATA_SET', type=str, choices=['FIQA', 'MSMARCO', 'ANTIQUE'],
+    ap.add_argument('DATA_SET', type=str, choices=['FIQA', 'MSMARCO', 'ANTIQUE', 'INSURANCE_QA'],
                     help='The dataset that will be processed.')
     ap.add_argument('--vocab_size', type=int, default=80000,
                     help='Only use the n most frequent words for the vocabulary.')
@@ -59,10 +59,10 @@ if __name__ == '__main__':
                          NLTKTokenizer(),
                          args.vocab_size,
                          os.path.join(args.OUTPUT_DIR, 'vocabulary.pkl'),
-                         args.max_q_len,
-                         args.max_d_len,
                          train_outfile=train_path,
                          dev_outfile=dev_path,
-                         test_outfile=test_path)
+                         test_outfile=test_path,
+                         max_doc_len=args.max_d_len,
+                         max_query_len=args.max_q_len)
 
     saver.build_all()
