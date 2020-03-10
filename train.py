@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from data_source import MultihopTrainset
 from model import QAMatching
-from qa_utils.io import get_cuda_device, batches_to_device, load_pkl_file
+from qa_utils.io import get_cuda_device, list_to, load_pkl_file
 from qa_utils.misc import Logger
 
 
@@ -29,8 +29,8 @@ def sample_neg_docs(model, device, query_batch, query_lens, pos_doc_batch, pos_l
                                   query_lens.to(device),
                                   pos_doc_batch.to(device),
                                   pos_lens.to(device),
-                                  batches_to_device(neg_doc_batches, device),
-                                  batches_to_device(neg_lens_batches, device))
+                                  list_to(device, neg_doc_batches),
+                                  list_to(device, neg_lens_batches))
 
         losses = [max_margin(pos_sim, neg_sim) for neg_sim in neg_sims]
         losses = torch.stack(losses, dim=1)
@@ -117,7 +117,8 @@ def main():
     ap.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings')
     ap.add_argument('--glove_cache', default='glove_cache', help='Glove cache directory.')
 
-    ap.add_argument('--num_neg_examples', type=int, default=50, help='The dimensionality of the GloVe embeddings')
+    ap.add_argument('--num_neg_examples', type=int, default=50,
+                    help='Number of documents to sample document with maximum loss from')
     ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 
     ap.add_argument('--epochs', type=int, default=20, help='Number of epochs')
@@ -130,6 +131,7 @@ def main():
     args = ap.parse_args()
 
     torch.manual_seed(args.random_seed)
+
     trainset = MultihopTrainset(args.TRAIN_DATA, args.num_neg_examples)
     train_dl = DataLoader(trainset, args.batch_size, True, collate_fn=trainset.collate)
 
