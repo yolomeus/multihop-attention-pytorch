@@ -115,23 +115,23 @@ def main():
     ap.add_argument('--hidden_dim', type=int, default=512,
                     help='The hidden dimension used throughout the whole network.')
 
-    ap.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings')
+    ap.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings.')
     ap.add_argument('--glove_cache', default='glove_cache', help='Glove cache directory.')
 
     ap.add_argument('--num_neg_examples', type=int, default=50,
-                    help='Number of documents to sample document with maximum loss from')
-    ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
+                    help='Number of documents to sample document with maximum loss from.')
+    ap.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate.')
 
-    ap.add_argument('--epochs', type=int, default=20, help='Number of epochs')
-    ap.add_argument('--batch_size', type=int, default=100, help='Batch size')
+    ap.add_argument('--epochs', type=int, default=20, help='Number of epochs.')
+    ap.add_argument('--batch_size', type=int, default=100, help='Batch size.')
 
-    ap.add_argument('--pred_batch_size', type=int, default=None, help='Batch size when doing forward pass to '
-                                                                      'compute maximum loss')
+    ap.add_argument('--pred_batch_size', type=int, default=None, help='Batch size when doing forward pass to determine '
+                                                                      'negative examples with maximum loss.')
 
     ap.add_argument('--accumulate_batches', type=int, default=1,
                     help='Update weights after this many batches')
-    ap.add_argument('--working_dir', default='train', help='Working directory for checkpoints and logs')
-    ap.add_argument('--random_seed', type=int, default=1579129142, help='Random seed')
+    ap.add_argument('--working_dir', default='train', help='Working directory for checkpoints and logs.')
+    ap.add_argument('--random_seed', type=int, default=1579129142, help='Random seed.')
     ap.add_argument('--num_workers', type=int, default=1, help='Number of workers used for loading data.')
 
     args = ap.parse_args()
