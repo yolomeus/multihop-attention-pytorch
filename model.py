@@ -387,7 +387,6 @@ class QAMatching(nn.Module):
         self.sim_layer = nn.CosineSimilarity(dim=1, eps=1e-8)
 
     def single_forward(self, q_batch, q_batch_length, pooling='max'):
-        # q_batch_length = torch.LongTensor(q_batch_length)
         q_batch_length, q_perm_idx = q_batch_length.sort(0, descending=True)
         q_batch = q_batch[q_perm_idx]
 
@@ -403,41 +402,21 @@ class QAMatching(nn.Module):
 
         return q_out
 
-    def forward(self, q_batch, q_batch_length, pos_batch, pos_length, neg_batches=None, neg_batch_lengths=None):
+    def forward(self, q_batch, q_batch_length, doc_batch, doc_batch_length):
         q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
-
-        # q_out = [None] * 3
-        # q_out[0] = torch.max(q_out_raw, 1)[0]
-        # q_out[1] = self.single_forward2(q_batch, q_batch_length, pooling='last')
-        # q_out[2] = torch.mean(q_out_raw, 1)
 
         q_out = self.qatt_layer(q_out_raw)
         self.num_steps = 2  # q_out.size(0)
 
-        pos_d_out = self.single_forward(pos_batch, pos_length, pooling='raw')
+        pos_d_out = self.single_forward(doc_batch, doc_batch_length, pooling='raw')
 
-        pos_sim = 0
+        sim = 0
         for idx in range(self.num_steps + 1):
             pos_d_att = self.att_layer([pos_d_out, q_out[idx]])
             s = self.sim_layer(pos_d_att, q_out[idx])
-            pos_sim += s
+            sim += s
 
-        if not self.training:
-            return pos_sim.unsqueeze(-1)
-
-        neg_d_outs = []
-        for d_batch, d_batch_length in zip(neg_batches, neg_batch_lengths):
-            neg_d_out = self.single_forward(d_batch, d_batch_length, pooling='raw')  # b x l x h
-            neg_d_outs.append(neg_d_out)
-
-        neg_sims = [0] * len(neg_batches)
-        for i, neg_d_out in enumerate(neg_d_outs):
-            for idx in range(self.num_steps + 1):
-                neg_d_att = self.att_layer([neg_d_out, q_out[idx]])
-                s = self.sim_layer(neg_d_att, q_out[idx])
-                neg_sims[i] += s
-
-        return pos_sim, neg_sims
+        return sim.unsqueeze(-1)
 
 
 class GloveEmbedding(torch.nn.Module):

@@ -1,4 +1,5 @@
 import h5pickle as h5py
+import torch
 from torch import LongTensor
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils import data
@@ -45,16 +46,17 @@ class MultihopTrainset(MultihopHdf5Dataset):
         query_batch = pad_sequence(query_batch, batch_first=True, padding_value=0)
         pos_doc_batch = pad_sequence(pos_doc_batch, batch_first=True, padding_value=0)
 
-        neg_padded_batches = []
-
+        neg_batches = []
         for i in range(num_neg_examples):
-            cur_batch = []
             for seq in neg_docs_batch:
-                cur_batch.append(seq[i])
-            padded_batch = pad_sequence(cur_batch, batch_first=True, padding_value=0)
-            neg_padded_batches.append(padded_batch)
+                neg_batches.append(seq[i])
 
-        return query_batch, query_lens, pos_doc_batch, pos_lens, neg_padded_batches, neg_batch_lens
+        neg_padded_batches = pad_sequence(neg_batches, batch_first=True, padding_value=0)
+        neg_padded_batches = torch.split(neg_padded_batches, batch_size, 0)
+
+        neg_examples = [[query_batch, query_lens, neg_batch, neg_lens] for neg_batch, neg_lens in
+                        zip(neg_padded_batches, neg_batch_lens)]
+        return [query_batch, query_lens, pos_doc_batch, pos_lens], neg_examples
 
 
 class MultihopTestset(MultihopHdf5Dataset):

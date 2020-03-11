@@ -12,6 +12,7 @@ from data_source import MultihopTrainset
 from model import QAMatching
 from qa_utils.io import get_cuda_device, list_to, load_pkl_file
 from qa_utils.misc import Logger
+from qa_utils.training import train_model_pairwise
 
 
 def max_margin(pos_sim, neg_sim, margin=0.2):
@@ -123,17 +124,22 @@ def main():
 
     ap.add_argument('--epochs', type=int, default=20, help='Number of epochs')
     ap.add_argument('--batch_size', type=int, default=100, help='Batch size')
+
+    ap.add_argument('--pred_batch_size', type=int, default=None, help='Batch size when doing forward pass to '
+                                                                      'compute maximum loss')
+
     ap.add_argument('--accumulate_batches', type=int, default=1,
                     help='Update weights after this many batches')
     ap.add_argument('--working_dir', default='train', help='Working directory for checkpoints and logs')
     ap.add_argument('--random_seed', type=int, default=1579129142, help='Random seed')
+    ap.add_argument('--num_workers', type=int, default=1, help='Number of workers used for loading data.')
 
     args = ap.parse_args()
 
     torch.manual_seed(args.random_seed)
 
     trainset = MultihopTrainset(args.TRAIN_DATA, args.num_neg_examples)
-    train_dl = DataLoader(trainset, args.batch_size, True, collate_fn=trainset.collate)
+    train_dl = DataLoader(trainset, args.batch_size, True, collate_fn=trainset.collate, num_workers=args.num_workers)
 
     device = get_cuda_device()
 
@@ -144,7 +150,7 @@ def main():
     model = torch.nn.DataParallel(model)
 
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    train(model, train_dl, optimizer, device, args)
+    train_model_pairwise(model, max_margin, train_dl, optimizer, args, device)
 
 
 if __name__ == '__main__':
