@@ -1,7 +1,6 @@
 # Multihop Attention Network for Question Answer Matching
-This repository contains an implementation for training the Multi-Hop Attention Network proposed in 
-[Multihop Attention Networks for Question Answer Matching](https://dl.acm.org/doi/10.1145/3209978.3210009). The model's 
-implementation is mostly based on code from [this respository](https://github.com/namkhanhtran/nn4nqa/). 
+This repository contains an implementation for training and benchmarking the Multihop Attention Network proposed in 
+[Multihop Attention Networks for Question Answer Matching](https://dl.acm.org/doi/10.1145/3209978.3210009) on different QA retrieval tasks. The model's implementation is mostly based on code from [this respository](https://github.com/namkhanhtran/nn4nqa/). 
 
 
 The following datasets are currently supported:
