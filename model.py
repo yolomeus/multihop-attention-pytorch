@@ -12,50 +12,6 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torchtext import vocab
 
 
-class Preprocessor(nn.Module):
-    """"""
-
-    def __init__(self, vocab_size, embed_size, hidden_size, pretrained_emb=None):
-        """"""
-        super(Preprocessor, self).__init__()
-        self.vocab_size = vocab_size
-        self.embed_size = embed_size
-        self.hidden_size = hidden_size
-
-        self.embedding = nn.Embedding(vocab_size, embed_size, padding_idx=0)
-        # initialize with pretrained
-        if pretrained_emb is not None:
-            self.embedding.weight.data.copy_(torch.from_numpy(pretrained_emb))
-
-        self.W_i = nn.Parameter(torch.FloatTensor(self.embed_size, self.hidden_size))
-        self.b_i = nn.Parameter(torch.FloatTensor(self.hidden_size))
-
-        self.W_u = nn.Parameter(torch.FloatTensor(self.embed_size, self.hidden_size))
-        self.b_u = nn.Parameter(torch.FloatTensor(self.hidden_size))
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        stdv = 0.1
-        self.W_i.data.uniform_(-stdv, stdv)
-        self.W_u.data.uniform_(-stdv, stdv)
-
-    def forward(self, inputs):
-        """
-        """
-        inputs = self.embedding(inputs)  # b x l x d
-
-        W = torch.bmm(inputs, self.W_i.unsqueeze(0).expand(inputs.size(0), *self.W_i.size()))  # b x l x h
-        W = W + self.b_i
-
-        U = torch.bmm(inputs, self.W_u.unsqueeze(0).expand(inputs.size(0), *self.W_u.size()))
-        U = U + self.b_u
-
-        outputs = F.sigmoid(W) * F.tanh(U)
-
-        return outputs
-
-
 class Encoder(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size, id_to_word, glove_cache, bidirectional=False):
         super(Encoder, self).__init__()
@@ -97,80 +53,6 @@ class Encoder(nn.Module):
             return torch.max(outputs, 1)[0]  # return values and index --> first values
         else:
             return torch.mean(outputs, 1)
-
-
-class SelfAttentionLayer(nn.Module):
-    """"""
-
-    def __init__(self, hidden_size, hops=5):
-        """"""
-        super(SelfAttentionLayer, self).__init__()
-        self.hidden_size = hidden_size
-        self.hops = hops
-
-        self.W_w = nn.Parameter(torch.FloatTensor(self.hidden_size, self.hidden_size))
-
-        self.b_w = nn.Parameter(torch.FloatTensor(self.hidden_size))
-
-        self.U_w = nn.Parameter(torch.FloatTensor(self.hidden_size, self.hops))
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        stdv = .1
-        self.W_w.data.uniform_(-stdv, stdv)
-        self.U_w.data.uniform_(-stdv, stdv)
-
-    def forward(self, inputs, pooling='sum'):
-        """
-        """
-        # print('inputs', inputs)
-        M = torch.bmm(inputs, self.W_w.unsqueeze(0).expand(inputs.size(0), *self.W_w.size()))  # batch x len x h
-        M += self.b_w
-
-        M = F.tanh(M)
-
-        U = torch.bmm(M, self.U_w.unsqueeze(0).expand(M.size(0), *self.U_w.size()))  # batch x len x hops
-        alpha = F.softmax(U, dim=1)  # b x l x hops
-
-        # b x hops x h
-        return torch.bmm(alpha.permute(0, 2, 1), inputs).permute(1, 0, 2)  # hops x b x h
-
-
-class CNN(nn.Module):
-    def __init__(self, vocab_size, embed_size, out_channels, pretrained_emb=None):
-        super(CNN, self).__init__()
-
-        self.vocab_size = vocab_size
-        self.embed_size = embed_size
-        self.out_channels = out_channels
-
-        self.kernel_size = 3
-
-        self.embedding = nn.Embedding(vocab_size, embed_size, padding_idx=0)
-        # initialize with pretrained
-        if pretrained_emb is not None:
-            self.embedding.weight.data.copy_(torch.from_numpy(pretrained_emb))
-
-        self.convs1 = nn.Conv2d(1, self.out_channels, (self.kernel_size, self.embed_size), stride=1,
-                                padding=(self.kernel_size // 2, 0))
-
-    def forward(self, inputs, pooling='max'):
-        """
-        """
-        inputs = self.embedding(inputs)  # batch x seq x dim
-
-        inputs = inputs.unsqueeze(1)  # b x 1 x l x h
-
-        outputs = F.relu(self.convs1(inputs))  # (batch, Co, seq, 1)
-        outputs = outputs.squeeze(3)  # batch x Co x seq
-
-        if pooling == 'max':
-            outputs = F.max_pool1d(outputs, outputs.size(2))  # b x Co x 1
-            return outputs.squeeze(2)
-
-        outputs = outputs.permute(0, 2, 1)  # b x l x Co
-        return outputs
 
 
 class SequentialAttention(nn.Module):
@@ -406,14 +288,14 @@ class QAMatching(nn.Module):
         q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
 
         q_out = self.qatt_layer(q_out_raw)
-        self.num_steps = 2  # q_out.size(0)
+        self.num_steps = 2
 
-        pos_d_out = self.single_forward(doc_batch, doc_batch_length, pooling='raw')
+        d_out = self.single_forward(doc_batch, doc_batch_length, pooling='raw')
 
         sim = 0
         for idx in range(self.num_steps + 1):
-            pos_d_att = self.att_layer([pos_d_out, q_out[idx]])
-            s = self.sim_layer(pos_d_att, q_out[idx])
+            d_att = self.att_layer([d_out, q_out[idx]])
+            s = self.sim_layer(d_att, q_out[idx])
             sim += s
 
         return sim.unsqueeze(-1)
