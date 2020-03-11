@@ -1,7 +1,12 @@
 import nltk as nltk
 
+from qa_utils.text import Tokenizer
 
-class NLTKTokenizer:
-    @staticmethod
-    def tokenize(text):
+
+class NLTKTokenizer(Tokenizer):
+    """
+    Applies lower case folding and uses nltk's `word_tokenize(text)`.
+    """
+
+    def tokenize(self, text):
         return nltk.word_tokenize(text.lower())
