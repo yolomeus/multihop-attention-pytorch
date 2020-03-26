@@ -1,4 +1,5 @@
 import h5pickle as h5py
+import numpy as np
 import torch
 from torch import LongTensor
 from torch.nn.utils.rnn import pad_sequence
@@ -16,7 +17,7 @@ class MultihopTrainset(MultihopHdf5Dataset):
     def __init__(self, file_path, neg_examples, max_q_len=20, max_doc_len=150):
         super().__init__(file_path, max_q_len, max_doc_len)
         fp = self.fp
-        self.neg_examples = neg_examples
+        self.num_neg_examples = neg_examples
 
         self.queries = fp['query']
         self.pos_docs = fp['pos_doc']
@@ -25,38 +26,49 @@ class MultihopTrainset(MultihopHdf5Dataset):
     def __getitem__(self, index):
         query = LongTensor(self.queries[index])
         pos_doc = LongTensor(self.pos_docs[index])
-        neg_docs = [LongTensor(self.neg_docs[str(i)][index][:self.max_doc_len]) for i in range(self.neg_examples)]
+        neg_docs = [LongTensor(self.neg_docs[str(i)][index][:self.max_doc_len]) for i in range(self.num_neg_examples)]
+        neg_docs_lens = [len(doc) for doc in neg_docs]
 
-        return query[:self.max_q_len], pos_doc[:self.max_doc_len], neg_docs
+        return query[:self.max_q_len], pos_doc[:self.max_doc_len], neg_docs, neg_docs_lens
 
     def __len__(self):
         return len(self.queries)
 
-    @staticmethod
-    def collate(batch):
-        query_batch, pos_doc_batch, neg_docs_batch = zip(*batch)
-        query_lens = LongTensor([len(q) for q in query_batch])
-        pos_lens = LongTensor([len(d) for d in pos_doc_batch])
-
-        num_neg_examples = len(neg_docs_batch[0])
+    def collate(self, batch):
         batch_size = len(batch)
-        neg_batch_lens = [LongTensor([len(neg_docs_batch[j][i]) for j in range(batch_size)]) for i in
-                          range(num_neg_examples)]
+        queries, query_lengths, pos_docs, pos_doc_lengths, neg_docs, neg_doc_lengths = \
+            [], [], [], [], [], []
 
-        query_batch = pad_sequence(query_batch, batch_first=True, padding_value=0)
-        pos_doc_batch = pad_sequence(pos_doc_batch, batch_first=True, padding_value=0)
+        # in order to pad the sequences, they must be in a flat list first
+        for b_query, b_pos_doc, b_neg_docs, b_neg_doc_lengths in batch:
+            queries.append(b_query)
+            query_lengths.append(len(b_query))
+            pos_docs.append(b_pos_doc)
+            pos_doc_lengths.append(len(b_pos_doc))
+            neg_docs.extend(b_neg_docs)
+            neg_doc_lengths.extend(b_neg_doc_lengths)
 
-        neg_batches = []
-        for i in range(num_neg_examples):
-            for seq in neg_docs_batch:
-                neg_batches.append(seq[i])
+        queries = torch.nn.utils.rnn.pad_sequence(queries, batch_first=True)
+        query_lengths = torch.LongTensor(query_lengths)
+        pos_docs = torch.nn.utils.rnn.pad_sequence(pos_docs, batch_first=True)
+        pos_doc_lengths = torch.LongTensor(pos_doc_lengths)
+        neg_docs = torch.nn.utils.rnn.pad_sequence(neg_docs, batch_first=True)
+        neg_doc_lengths = torch.LongTensor(neg_doc_lengths)
 
-        neg_padded_batches = pad_sequence(neg_batches, batch_first=True, padding_value=0)
-        neg_padded_batches = torch.split(neg_padded_batches, batch_size, 0)
+        pos_inputs = [queries, query_lengths, pos_docs, pos_doc_lengths]
 
-        neg_examples = [[query_batch, query_lens, neg_batch, neg_lens] for neg_batch, neg_lens in
-                        zip(neg_padded_batches, neg_batch_lens)]
-        return [query_batch, query_lens, pos_doc_batch, pos_lens], neg_examples
+        # for the negative inputs, we need to repeat the queries for each negative example and then
+        # split everything again
+        queries_neg = np.repeat(queries, self.num_neg_examples, axis=0)
+        queries_neg = np.split(queries_neg, batch_size)
+        query_lengths_neg = np.repeat(query_lengths, self.num_neg_examples, axis=0)
+        query_lengths_neg = np.split(query_lengths_neg, batch_size)
+        neg_docs = np.split(neg_docs, batch_size)
+        neg_doc_lengths = np.split(neg_doc_lengths, batch_size)
+
+        neg_inputs = [queries_neg, query_lengths_neg, neg_docs, neg_doc_lengths]
+
+        return pos_inputs, neg_inputs
 
 
 class MultihopTestset(MultihopHdf5Dataset):
