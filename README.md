@@ -65,7 +65,8 @@ train.py [-h] [--hidden_dim HIDDEN_DIM] [--embed_dim EMBED_DIM]
 ```
 e.g.:
 ```
-python /output/path/insrqa/train.hdf5 output/path/insrqa/vocabulary.pkl --epochs 3 --batch_size 256 --working_dir ./train_logs
+python train.py /output/path/insrqa/train.hdf5 output/path/insrqa/vocabulary.pkl --epochs 3 --batch_size 256 \
+ --working_dir ./train_logs
 ```
 Arguments:
 ```
@@ -113,7 +114,7 @@ evaluate.py [-h] [--mrr_k MRR_K] [--batch_size BATCH_SIZE]
 
 e.g.:
 ```
-/output/path/insrqa/dev.hdf5 /output/path/insrqa/test.hdf5 ./train_logs --batch_size 2048
+python evaluate.py /output/path/insrqa/dev.hdf5 /output/path/insrqa/test.hdf5 ./train_logs --batch_size 2048
 ```
 Arguments:
 ```
