@@ -1,4 +1,4 @@
-import nltk as nltk
+import nltk
 
 from qa_utils.text import Tokenizer
 

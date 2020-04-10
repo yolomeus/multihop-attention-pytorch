@@ -26,7 +26,7 @@ class MultihopTrainset(MultihopHdf5Dataset):
     def __getitem__(self, index):
         query = LongTensor(self.queries[index])
         pos_doc = LongTensor(self.pos_docs[index])
-        neg_docs = [LongTensor(self.neg_docs[str(i)][index][:self.max_doc_len]) for i in range(self.num_neg_examples)]
+        neg_docs = [LongTensor(self.neg_docs[index * self.num_neg_examples + i]) for i in range(self.num_neg_examples)]
         neg_docs_lens = [len(doc) for doc in neg_docs]
 
         return query[:self.max_q_len], pos_doc[:self.max_doc_len], neg_docs, neg_docs_lens

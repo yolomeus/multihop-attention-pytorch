@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from data_source import MultihopTrainset
 from model import QAMatching
-from qa_utils.io import get_cuda_device, load_pkl_file
+from qa_utils.io import get_cuda_device, load_pkl_file, load_json_file
 from qa_utils.training import train_model_pairwise
 
 
@@ -50,7 +50,7 @@ def main():
 
     device = get_cuda_device()
 
-    id_to_word = load_pkl_file(args.VOCAB_FILE)
+    id_to_word = load_json_file(args.VOCAB_FILE)
     vocab_size = len(id_to_word.keys())
     model = QAMatching(vocab_size, args.embed_dim, args.hidden_dim, id_to_word, args.glove_cache)
     model = model.to(device)

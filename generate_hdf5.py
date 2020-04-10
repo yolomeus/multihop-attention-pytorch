@@ -1,7 +1,7 @@
 import os
 from argparse import ArgumentParser
 
-from hdf5_saver import MANHdf5Saver
+from hdf5saver import MANHdf5Saver
 from qa_utils.preprocessing.antique import Antique
 from qa_utils.preprocessing.fiqa import FiQA
 from qa_utils.preprocessing.insrqa import InsuranceQA
@@ -55,14 +55,15 @@ if __name__ == '__main__':
     dev_path = None if args.no_dev else os.path.join(args.OUTPUT_DIR, 'dev.hdf5')
     test_path = None if args.no_test else os.path.join(args.OUTPUT_DIR, 'test.hdf5')
 
-    saver = MANBaseHdf5Saver(dataset,
-                             NLTKTokenizer(),
-                             args.vocab_size,
-                             os.path.join(args.OUTPUT_DIR, 'vocabulary.json'),
-                             train_outfile=train_path,
-                             dev_outfile=dev_path,
-                             test_outfile=test_path,
-                             max_doc_len=args.max_d_len,
-                             max_query_len=args.max_q_len)
+    saver = MANHdf5Saver(dataset,
+                         NLTKTokenizer(),
+                         args.vocab_size,
+                         os.path.join(args.OUTPUT_DIR, 'vocabulary.json'),
+                         train_outfile=train_path,
+                         dev_outfile=dev_path,
+                         test_outfile=test_path,
+                         max_doc_len=args.max_d_len,
+                         max_query_len=args.max_q_len,
+                         n_neg_examples=args.num_neg_examples)
 
     saver.build_all()
