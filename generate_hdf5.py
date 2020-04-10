@@ -1,4 +1,5 @@
 import os
+import random
 from argparse import ArgumentParser
 
 from hdf5saver import MANHdf5Saver
@@ -14,6 +15,7 @@ if __name__ == '__main__':
     ap.add_argument('OUTPUT_DIR', type=str, help='Directory to store the generated files in.')
     ap.add_argument('DATA_SET', type=str, choices=['FIQA', 'MSMARCO', 'ANTIQUE', 'INSURANCE_QA'],
                     help='The dataset that will be processed.')
+    ap.add_argument('--random_seed', type=int, default=1586530105, help='the global random seed')
     ap.add_argument('--vocab_size', type=int, default=80000,
                     help='Only use the n most frequent words for the vocabulary.')
     ap.add_argument('--num_neg_examples', type=int, default=50,
@@ -30,6 +32,7 @@ if __name__ == '__main__':
     args = ap.parse_args()
 
     os.makedirs(args.OUTPUT_DIR, exist_ok=True)
+    random.seed(args.random_seed)
 
     split_dir = 'qa_utils/splits'
     if args.DATA_SET == 'FIQA':
