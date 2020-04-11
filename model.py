@@ -83,7 +83,7 @@ class SequentialAttention(nn.Module):
 
         outputs = torch.sum(outputs, 2).unsqueeze(2)  # b x l x 1
 
-        alpha = F.softmax(outputs, dim=1)
+        alpha = torch.softmax(outputs, dim=1)
 
         return torch.sum(inputs[0] * alpha, 1)
 
@@ -121,7 +121,7 @@ class MLPttentionLayer(nn.Module):
         M = self.activation(M)  # batch x len x h
 
         U = torch.bmm(M, self.W_b.unsqueeze(0).expand(M.size(0), *self.W_b.size()))
-        alpha = F.softmax(U, dim=1)  # batch x len x 1
+        alpha = torch.softmax(U, dim=1)  # batch x len x 1
 
         if pooling == 'max':
             return torch.max(inputs[0] * alpha, 1)[0]  # batch x h
@@ -151,7 +151,7 @@ class BilinearAttentionLayer(nn.Module):
         """
         """
         M = torch.mm(inputs[1], self.W).unsqueeze(1).expand_as(inputs[0])  # batch x len x h
-        alpha = F.softmax(torch.sum(M * inputs[0], dim=2), dim=1)  # batch x len
+        alpha = torch.softmax(torch.sum(M * inputs[0], dim=2), dim=1)  # batch x len
         alpha = alpha.unsqueeze(2).expand_as(inputs[0])
 
         if pooling == 'max':
@@ -210,30 +210,30 @@ class MultiHopAttention(nn.Module):
 
         W_unsq = self.W_u_1.unsqueeze(0).expand(inputs.size(0), *self.W_u_1.size())
         M = torch.bmm(inputs, W_unsq)  # b x l x h
-        M = F.tanh(M)
-        M = M * F.tanh(torch.mm(m_u[0], self.W_u_m_1)).unsqueeze(1).expand_as(M)
+        M = torch.tanh(M)
+        M = M * torch.tanh(torch.mm(m_u[0], self.W_u_m_1)).unsqueeze(1).expand_as(M)
         U = torch.bmm(M, self.W_u_h_1.unsqueeze(0).expand(M.size(0), *self.W_u_h_1.size()))
-        alpha = F.softmax(U, dim=1)  # batch x len x 1
+        alpha = torch.softmax(U, dim=1)  # batch x len x 1
 
         u_att[1] = torch.sum(inputs * alpha, 1)
 
         if self.num_steps > 1:
             m_u[1] = m_u[0] + u_att[0] * qvector if qvector is not None else m_u[0] + u_att[0]
             M = torch.bmm(inputs, self.W_u_2.unsqueeze(0).expand(inputs.size(0), *self.W_u_2.size()))  # b x l x h
-            M = F.tanh(M)
-            M = M * F.tanh(torch.mm(m_u[1], self.W_u_m_2)).unsqueeze(1).expand_as(M)
+            M = torch.tanh(M)
+            M = M * torch.tanh(torch.mm(m_u[1], self.W_u_m_2)).unsqueeze(1).expand_as(M)
             U = torch.bmm(M, self.W_u_h_2.unsqueeze(0).expand(M.size(0), *self.W_u_h_2.size()))
-            alpha = F.softmax(U, dim=1)  # batch x len x 1
+            alpha = torch.softmax(U, dim=1)  # batch x len x 1
 
             u_att[2] = torch.sum(inputs * alpha, 1)
 
         if self.num_steps > 2:
             m_u[2] = m_u[1] + u_att[1] * qvector if qvector is not None else m_u[1] + u_att[1]
             M = torch.bmm(inputs, self.W_u_3.unsqueeze(0).expand(inputs.size(0), *self.W_u_3.size()))  # b x l x h
-            M = F.tanh(M)
-            M = M * F.tanh(torch.mm(m_u[2], self.W_u_m_3)).unsqueeze(1).expand_as(M)
+            M = torch.tanh(M)
+            M = M * torch.tanh(torch.mm(m_u[2], self.W_u_m_3)).unsqueeze(1).expand_as(M)
             U = torch.bmm(M, self.W_u_h_3.unsqueeze(0).expand(M.size(0), *self.W_u_h_3.size()))
-            alpha = F.softmax(U, dim=1)  # batch x len x 1
+            alpha = torch.softmax(U, dim=1)  # batch x len x 1
             u_att[3] = torch.sum(inputs * alpha, 1)
 
         return u_att
