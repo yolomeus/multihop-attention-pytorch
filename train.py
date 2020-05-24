@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from data_source import MultihopTrainset
 from model import QAMatching
-from qa_utils.io import get_cuda_device, load_pkl_file, load_json_file
+from qa_utils.io import get_cuda_device, load_json_file
 from qa_utils.training import train_model_pairwise
 
 
@@ -39,7 +39,7 @@ def main():
                     help='Update weights after this many batches')
     ap.add_argument('--working_dir', default='train', help='Working directory for checkpoints and logs.')
     ap.add_argument('--random_seed', type=int, default=1579129142, help='Random seed.')
-    ap.add_argument('--num_workers', type=int, default=1, help='Number of workers used for loading data.')
+    ap.add_argument('--num_workers', type=int, default=0, help='Number of workers used for loading data.')
 
     args = ap.parse_args()
 
