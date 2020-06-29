@@ -6,10 +6,109 @@ Code taken from https://github.com/namkhanhtran/nn4nqa
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torchtext import vocab
+
+from data_source import MultihopTrainset, MultihopTestset
+from qa_utils.lightning import BaseRanker
+
+
+class MultiHopAttentionRanker(BaseRanker):
+    """"""
+
+    def __init__(self, vocab_size, embed_size, hidden_size, lr, loss_margin, id_to_word, glove_cache, train_ds, val_ds,
+                 test_ds,
+                 batch_size, num_neg_examples, bidirectional=False, pooling='max', num_steps=2,
+                 att_method='sequential'):
+
+        train_ds = MultihopTrainset(train_ds, num_neg_examples)
+        val_ds = MultihopTestset(val_ds)
+        test_ds = MultihopTestset(test_ds)
+        super().__init__(train_ds, val_ds, test_ds, batch_size)
+
+        self.encoder = Encoder(vocab_size=vocab_size,
+                               embed_size=embed_size,
+                               hidden_size=hidden_size,
+                               id_to_word=id_to_word,
+                               glove_cache=glove_cache,
+                               bidirectional=bidirectional)
+
+        self.num_steps = num_steps
+        self.pooling = pooling  # [raw, max, last, mean]
+
+        self.att_size = hidden_size
+        if att_method == 'sequential':
+            self.att_layer = SequentialAttention(hidden_size=self.att_size)
+        elif att_method == 'mlp':
+            self.att_layer = MLPttentionLayer(hidden_size=self.att_size)
+        else:
+            self.att_layer = BilinearAttentionLayer(hidden_size=self.att_size)
+
+        self.qatt_layer = MultiHopAttention(hidden_size=self.att_size, num_steps=num_steps)
+
+        self.sim_layer = nn.CosineSimilarity(dim=1, eps=1e-8)
+
+        self.lr = lr
+        self.loss_margin = loss_margin
+        self.save_hyperparameters()
+
+    def single_forward(self, q_batch, q_batch_length, pooling='max'):
+        q_batch_length, q_perm_idx = q_batch_length.sort(0, descending=True)
+        q_batch = q_batch[q_perm_idx]
+
+        q_out = self.encoder(q_batch, q_batch_length, pooling=pooling)
+        if pooling == 'raw':
+            q_out = q_out.permute(1, 0, 2)  # len x batch x h --> batch x len x h
+
+        q_inverse_idx = torch.zeros(q_perm_idx.size()[0]).long()
+        for i in range(q_perm_idx.size()[0]):
+            q_inverse_idx[q_perm_idx[i]] = i
+
+        q_out = q_out[q_inverse_idx]
+
+        return q_out
+
+    def forward(self, inputs):
+        q_batch, q_batch_length, doc_batch, doc_batch_length = inputs
+        q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
+
+        q_out = self.qatt_layer(q_out_raw)
+        self.num_steps = 2
+
+        d_out = self.single_forward(doc_batch, doc_batch_length, pooling='raw')
+
+        sim = 0
+        for idx in range(self.num_steps + 1):
+            d_att = self.att_layer([d_out, q_out[idx]])
+            s = self.sim_layer(d_att, q_out[idx])
+            sim += s
+
+        return sim.unsqueeze(-1)
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
+
+    def training_step(self, batch, batch_idx):
+        pos_inputs, neg_inputs = batch
+        pos_outputs, neg_outputs = torch.sigmoid(self(pos_inputs)), torch.sigmoid(self(neg_inputs))
+        loss = torch.mean(torch.clamp(self.loss_margin - pos_outputs + neg_outputs, min=0))
+        return {'loss': loss, 'log': {'train_loss': loss}}
+
+    @staticmethod
+    def add_model_specific_args(parser):
+        parser.add_argument('VOCAB_FILE', help='json file containing the mapping from ids to words, used for glove.')
+        parser.add_argument('--hidden_dim', type=int, default=512,
+                            help='The hidden dimension used throughout the whole network.')
+        parser.add_argument('--embed_dim', type=int, default=300, help='The dimensionality of the GloVe embeddings.')
+        parser.add_argument('--glove_cache', default='glove_cache', help='Glove cache directory.')
+
+        parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate.')
+        parser.add_argument('--loss_margin', type=float, default=0.2, help='Hinge loss margin')
+        parser.add_argument('--batch_size', type=int, default=32, help='Batch size')
+        parser.add_argument('--num_neg_examples', type=int, default=32, help='negative examples')
+
+        return parser
 
 
 class Encoder(nn.Module):
@@ -237,68 +336,6 @@ class MultiHopAttention(nn.Module):
             u_att[3] = torch.sum(inputs * alpha, 1)
 
         return u_att
-
-
-class QAMatching(nn.Module):
-    """"""
-
-    def __init__(self, vocab_size, embed_size, hidden_size, id_to_word, glove_cache, bidirectional=False, pooling='max',
-                 num_steps=2, att_method='sequential'):
-        super(QAMatching, self).__init__()
-
-        self.encoder = Encoder(vocab_size=vocab_size,
-                               embed_size=embed_size,
-                               hidden_size=hidden_size,
-                               id_to_word=id_to_word,
-                               glove_cache=glove_cache,
-                               bidirectional=bidirectional)
-
-        self.num_steps = num_steps
-        self.pooling = pooling  # [raw, max, last, mean]
-
-        self.att_size = hidden_size
-        if att_method == 'sequential':
-            self.att_layer = SequentialAttention(hidden_size=self.att_size)
-        elif att_method == 'mlp':
-            self.att_layer = MLPttentionLayer(hidden_size=self.att_size)
-        else:
-            self.att_layer = BilinearAttentionLayer(hidden_size=self.att_size)
-
-        self.qatt_layer = MultiHopAttention(hidden_size=self.att_size, num_steps=num_steps)
-
-        self.sim_layer = nn.CosineSimilarity(dim=1, eps=1e-8)
-
-    def single_forward(self, q_batch, q_batch_length, pooling='max'):
-        q_batch_length, q_perm_idx = q_batch_length.sort(0, descending=True)
-        q_batch = q_batch[q_perm_idx]
-
-        q_out = self.encoder(q_batch, q_batch_length, pooling=pooling)
-        if pooling == 'raw':
-            q_out = q_out.permute(1, 0, 2)  # len x batch x h --> batch x len x h
-
-        q_inverse_idx = torch.zeros(q_perm_idx.size()[0]).long()
-        for i in range(q_perm_idx.size()[0]):
-            q_inverse_idx[q_perm_idx[i]] = i
-
-        q_out = q_out[q_inverse_idx]
-
-        return q_out
-
-    def forward(self, q_batch, q_batch_length, doc_batch, doc_batch_length):
-        q_out_raw = self.single_forward(q_batch, q_batch_length, pooling='raw')  # b x l x h
-
-        q_out = self.qatt_layer(q_out_raw)
-        self.num_steps = 2
-
-        d_out = self.single_forward(doc_batch, doc_batch_length, pooling='raw')
-
-        sim = 0
-        for idx in range(self.num_steps + 1):
-            d_att = self.att_layer([d_out, q_out[idx]])
-            s = self.sim_layer(d_att, q_out[idx])
-            sim += s
-
-        return sim.unsqueeze(-1)
 
 
 class GloveEmbedding(torch.nn.Module):
