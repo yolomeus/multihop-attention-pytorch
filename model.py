@@ -11,14 +11,15 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from torchtext import vocab
 
 from data_source import MultihopTrainset, MultihopTestset
+from qa_utils.io import load_json_file
 from qa_utils.lightning import BaseRanker
 
 
 class MultiHopAttentionRanker(BaseRanker):
     """Multi-Hop Attention Network for non-factoid question answering."""
 
-    def __init__(self, vocab_size, embed_size, hidden_size, lr, loss_margin, id_to_word, glove_cache, train_ds, val_ds,
-                 test_ds, batch_size, num_neg_examples, bidirectional=False, pooling='max', num_steps=2,
+    def __init__(self, embed_size, hidden_size, lr, loss_margin, vocab_file, glove_cache, train_file, val_file,
+                 test_file, batch_size, num_neg_examples, bidirectional=False, pooling='max', num_steps=2,
                  att_method='sequential'):
         """
 
@@ -41,10 +42,13 @@ class MultiHopAttentionRanker(BaseRanker):
             att_method: attention method over the answer
         """
 
-        train_ds = MultihopTrainset(train_ds, num_neg_examples)
-        val_ds = MultihopTestset(val_ds)
-        test_ds = MultihopTestset(test_ds)
+        train_ds = MultihopTrainset(train_file, num_neg_examples)
+        val_ds = MultihopTestset(val_file)
+        test_ds = MultihopTestset(test_file)
         super().__init__(train_ds, val_ds, test_ds, batch_size)
+
+        id_to_word = load_json_file(vocab_file)
+        vocab_size = len(id_to_word.keys())
 
         self.encoder = Encoder(vocab_size=vocab_size,
                                embed_size=embed_size,

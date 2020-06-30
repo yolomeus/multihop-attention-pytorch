@@ -32,14 +32,11 @@ def main():
 
     seed_everything(args.random_seed)
 
-    id_to_word = load_json_file(args.VOCAB_FILE)
-    vocab_size = len(id_to_word.keys())
-    model = MultiHopAttentionRanker(vocab_size,
-                                    args.embed_dim,
+    model = MultiHopAttentionRanker(args.embed_dim,
                                     args.hidden_dim,
                                     args.learning_rate,
                                     args.loss_margin,
-                                    id_to_word,
+                                    args.VOCAB_FILE,
                                     args.glove_cache,
                                     args.TRAIN_DATA,
                                     args.VAL_DATA,
