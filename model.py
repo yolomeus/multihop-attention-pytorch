@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Code taken from https://github.com/namkhanhtran/nn4nqa
+Mostly adapted from https://github.com/namkhanhtran/nn4nqa
 """
 
 import torch
@@ -15,12 +15,31 @@ from qa_utils.lightning import BaseRanker
 
 
 class MultiHopAttentionRanker(BaseRanker):
-    """"""
+    """Multi-Hop Attention Network for non-factoid question answering."""
 
     def __init__(self, vocab_size, embed_size, hidden_size, lr, loss_margin, id_to_word, glove_cache, train_ds, val_ds,
-                 test_ds,
-                 batch_size, num_neg_examples, bidirectional=False, pooling='max', num_steps=2,
+                 test_ds, batch_size, num_neg_examples, bidirectional=False, pooling='max', num_steps=2,
                  att_method='sequential'):
+        """
+
+        Args:
+            vocab_size: number of words in the vocabulary
+            embed_size: embedding dimension
+            hidden_size: hidden dimension
+            lr: learning rate
+            loss_margin: margin for the hinge loss
+            id_to_word: mapping from id's to words in vocab
+            glove_cache: directory to save glove embeddings to
+            train_ds: train file path
+            val_ds: validation file path
+            test_ds: test file path
+            batch_size: batch size
+            num_neg_examples: number of negative examples per positive example
+            bidirectional: whether the lstm encoder should be bidirectional
+            pooling: how to pool the output embeddings
+            num_steps: number of hops
+            att_method: attention method over the answer
+        """
 
         train_ds = MultihopTrainset(train_ds, num_neg_examples)
         val_ds = MultihopTestset(val_ds)
